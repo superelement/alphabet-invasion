@@ -1,11 +1,22 @@
 
+export const ALPHABET_LENGTH = 26;
 
-const randomLetter = () => {
-  const aCode: number = 'a'.charCodeAt(0);
-  const zCode: number = 'z'.charCodeAt(0);
-  const randomLetterCode: number = Math.round( Math.random() * (zCode - aCode) );
+export class Game {
   
-  return String.fromCharCode(randomLetterCode + aCode);
-};
+  getRandom(): number {
+    const ran = Math.random();
+    return ran < 1 ? ran : 0.99;
+  }
+  
+  randomLetter(): string {
+    
+    const randomLetterCode: number = this.getRandom() * ALPHABET_LENGTH;
+    const aCode: number = 'a'.charCodeAt(0);
+    
+    return String.fromCharCode(aCode + randomLetterCode);
+  };
+}
 
-console.log(randomLetter())
+const game = new Game();
+
+console.log('-', game.randomLetter())

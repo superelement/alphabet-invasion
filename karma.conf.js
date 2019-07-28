@@ -3,10 +3,10 @@ module.exports = function(config) {
     frameworks: ['jasmine', 'karma-typescript'],
     browsers: ['Chrome'],
     files: [
-      'src/**/*.spec.ts'
+      'src/**/*.ts'
     ],
     preprocessors: {
-      'src/**/*.spec.ts': 'karma-typescript'
+      'src/**/*.ts': 'karma-typescript'
     }
   })
 }
