@@ -1,8 +1,15 @@
+import { BehaviorSubject } from 'rxjs';
 
 export const ALPHABET_LENGTH = 26;
+const levelChangeThreshold = 20;
+const speedAdjust = 50;
+const endThreshold = 15;
+const gameWidth = 30;
 
 export class Game {
   
+  private intervalSubject = new BehaviorSubject(600);
+
   getRandom(): number {
     const ran = Math.random();
     return ran < 1 ? ran : 0.99;
@@ -18,5 +25,4 @@ export class Game {
 }
 
 const game = new Game();
-
-console.log('-', game.randomLetter())
+console.log('1')
