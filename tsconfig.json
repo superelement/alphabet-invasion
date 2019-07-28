@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "es5",
     "module": "commonjs",
     "outDir": "public",
     "sourceMap": true
@@ -11,6 +11,7 @@
   "exclude": [
     "src/server.ts",
     "node_modules",
-    ".vscode"
+    ".vscode",
+    "**/*.spec.ts"
   ]
 }

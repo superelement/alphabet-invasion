@@ -2,46 +2,23 @@
   "name": "alphabet-invasion",
   "version": "1.0.0",
   "description": "Alphabet invasion game from RXJS tutorial",
-  "main": "index.js",
   "repository": "https://github.com/superelement/alphabet-invasion.git",
   "author": "Jim <jimdoyle82@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@types/node": "^12.6.8",
+    "browser-sync": "^2.26.7",
     "concurrently": "^4.1.1",
-    "eslint": "^6.1.0",
-    "eslint-plugin-import": "^2.18.2",
-    "express": "^4.17.1",
     "node-sass": "^4.12.0",
-    "nodemon": "^1.19.1",
-    "open-cli": "^5.0.0",
-    "reload": "^3.0.1",
+    "onchange": "^6.0.0",
     "rxjs": "6.4.*",
-    "ts-node": "^8.3.0",
-    "typescript": "^3.5.3",
-    "watch": "^1.0.2"
-  },
-  "nodemonConfig": {
-    "ignore": [
-      "**/*.test.ts",
-      "**/*.spec.ts",
-      ".git",
-      "node_modules"
-    ],
-    "watch": [
-      "src"
-    ],
-    "exec": "npm start",
-    "ext": "ts"
+    "typescript": "^3.5.3"
   },
   "scripts": {
-    "*start": "concurrently \"npm run server-reload\" \"npm run watch-ts\" \"open http://localhost:8000\"",
-    "*server-reload": "reload --dir ./public --watch-dir ./public --port 8000",
-    "*compile-ts": "node_modules/typescript/bin/tsc src/index.ts --outFile public/index.js",
-    "*watch-ts": "watch \"npm run compile-ts\" src",
-
-    "start": "node --inspect=5858 -r ts-node/register ./src/server.ts",
-    "start:watch": "nodemon",
-    "build": "tsc"
+    "start": "concurrently \"npm run serve\" \"npm run watch:scss\" \"npm run watch:tsc\"",
+    "serve": "browser-sync start --server \"public\" --port 3000 --files \"public\" ",
+    "build:scss": "node-sass --output-style compressed -r src -o public",
+    "watch:scss": "onchange \"src/**/*.scss\" -- npm run build:scss",
+    "watch:tsc": "tsc -w"
   }
 }
