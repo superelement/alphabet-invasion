@@ -1,4 +1,4 @@
-var mainBundle = (function (exports) {
+(function () {
     'use strict';
 
     /*! *****************************************************************************
@@ -1025,6 +1025,20 @@ var mainBundle = (function (exports) {
         return AsyncScheduler;
     }(Scheduler));
 
+    /** PURE_IMPORTS_START _Observable PURE_IMPORTS_END */
+    var EMPTY = /*@__PURE__*/ new Observable(function (subscriber) { return subscriber.complete(); });
+    function empty$1(scheduler) {
+        return scheduler ? emptyScheduled(scheduler) : EMPTY;
+    }
+    function emptyScheduled(scheduler) {
+        return new Observable(function (subscriber) { return scheduler.schedule(function () { return subscriber.complete(); }); });
+    }
+
+    /** PURE_IMPORTS_START  PURE_IMPORTS_END */
+    function isScheduler(value) {
+        return value && typeof value.schedule === 'function';
+    }
+
     /** PURE_IMPORTS_START  PURE_IMPORTS_END */
     var subscribeToArray = function (array) {
         return function (subscriber) {
@@ -1061,8 +1075,47 @@ var mainBundle = (function (exports) {
         }
     }
 
+    /** PURE_IMPORTS_START _Observable PURE_IMPORTS_END */
+    function scalar(value) {
+        var result = new Observable(function (subscriber) {
+            subscriber.next(value);
+            subscriber.complete();
+        });
+        result._isScalar = true;
+        result.value = value;
+        return result;
+    }
+
+    /** PURE_IMPORTS_START _util_isScheduler,_fromArray,_empty,_scalar PURE_IMPORTS_END */
+    function of() {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        var scheduler = args[args.length - 1];
+        if (isScheduler(scheduler)) {
+            args.pop();
+        }
+        else {
+            scheduler = undefined;
+        }
+        switch (args.length) {
+            case 0:
+                return empty$1(scheduler);
+            case 1:
+                return scheduler ? fromArray(args, scheduler) : scalar(args[0]);
+            default:
+                return fromArray(args, scheduler);
+        }
+    }
+
     /** PURE_IMPORTS_START _AsyncAction,_AsyncScheduler PURE_IMPORTS_END */
     var async = /*@__PURE__*/ new AsyncScheduler(AsyncAction);
+
+    /** PURE_IMPORTS_START  PURE_IMPORTS_END */
+    function identity(x) {
+        return x;
+    }
 
     /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
     function map(project, thisArg) {
@@ -1264,6 +1317,99 @@ var mainBundle = (function (exports) {
         return subscribeTo(result)(destination);
     }
 
+    /** PURE_IMPORTS_START tslib,_util_isScheduler,_util_isArray,_OuterSubscriber,_util_subscribeToResult,_fromArray PURE_IMPORTS_END */
+    var NONE = {};
+    function combineLatest() {
+        var observables = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            observables[_i] = arguments[_i];
+        }
+        var resultSelector = null;
+        var scheduler = null;
+        if (isScheduler(observables[observables.length - 1])) {
+            scheduler = observables.pop();
+        }
+        if (typeof observables[observables.length - 1] === 'function') {
+            resultSelector = observables.pop();
+        }
+        if (observables.length === 1 && isArray(observables[0])) {
+            observables = observables[0];
+        }
+        return fromArray(observables, scheduler).lift(new CombineLatestOperator(resultSelector));
+    }
+    var CombineLatestOperator = /*@__PURE__*/ (function () {
+        function CombineLatestOperator(resultSelector) {
+            this.resultSelector = resultSelector;
+        }
+        CombineLatestOperator.prototype.call = function (subscriber, source) {
+            return source.subscribe(new CombineLatestSubscriber(subscriber, this.resultSelector));
+        };
+        return CombineLatestOperator;
+    }());
+    var CombineLatestSubscriber = /*@__PURE__*/ (function (_super) {
+        __extends(CombineLatestSubscriber, _super);
+        function CombineLatestSubscriber(destination, resultSelector) {
+            var _this = _super.call(this, destination) || this;
+            _this.resultSelector = resultSelector;
+            _this.active = 0;
+            _this.values = [];
+            _this.observables = [];
+            return _this;
+        }
+        CombineLatestSubscriber.prototype._next = function (observable) {
+            this.values.push(NONE);
+            this.observables.push(observable);
+        };
+        CombineLatestSubscriber.prototype._complete = function () {
+            var observables = this.observables;
+            var len = observables.length;
+            if (len === 0) {
+                this.destination.complete();
+            }
+            else {
+                this.active = len;
+                this.toRespond = len;
+                for (var i = 0; i < len; i++) {
+                    var observable = observables[i];
+                    this.add(subscribeToResult(this, observable, observable, i));
+                }
+            }
+        };
+        CombineLatestSubscriber.prototype.notifyComplete = function (unused) {
+            if ((this.active -= 1) === 0) {
+                this.destination.complete();
+            }
+        };
+        CombineLatestSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+            var values = this.values;
+            var oldVal = values[outerIndex];
+            var toRespond = !this.toRespond
+                ? 0
+                : oldVal === NONE ? --this.toRespond : this.toRespond;
+            values[outerIndex] = innerValue;
+            if (toRespond === 0) {
+                if (this.resultSelector) {
+                    this._tryResultSelector(values);
+                }
+                else {
+                    this.destination.next(values.slice());
+                }
+            }
+        };
+        CombineLatestSubscriber.prototype._tryResultSelector = function (values) {
+            var result;
+            try {
+                result = this.resultSelector.apply(this, values);
+            }
+            catch (err) {
+                this.destination.error(err);
+                return;
+            }
+            this.destination.next(result);
+        };
+        return CombineLatestSubscriber;
+    }(OuterSubscriber));
+
     /** PURE_IMPORTS_START _symbol_observable PURE_IMPORTS_END */
     function isInteropObservable(input) {
         return input && typeof input[observable] === 'function';
@@ -1391,6 +1537,178 @@ var mainBundle = (function (exports) {
         throw new TypeError((input !== null && typeof input || input) + ' is not observable');
     }
 
+    /** PURE_IMPORTS_START tslib,_util_subscribeToResult,_OuterSubscriber,_InnerSubscriber,_map,_observable_from PURE_IMPORTS_END */
+    function mergeMap(project, resultSelector, concurrent) {
+        if (concurrent === void 0) {
+            concurrent = Number.POSITIVE_INFINITY;
+        }
+        if (typeof resultSelector === 'function') {
+            return function (source) { return source.pipe(mergeMap(function (a, i) { return from(project(a, i)).pipe(map(function (b, ii) { return resultSelector(a, b, i, ii); })); }, concurrent)); };
+        }
+        else if (typeof resultSelector === 'number') {
+            concurrent = resultSelector;
+        }
+        return function (source) { return source.lift(new MergeMapOperator(project, concurrent)); };
+    }
+    var MergeMapOperator = /*@__PURE__*/ (function () {
+        function MergeMapOperator(project, concurrent) {
+            if (concurrent === void 0) {
+                concurrent = Number.POSITIVE_INFINITY;
+            }
+            this.project = project;
+            this.concurrent = concurrent;
+        }
+        MergeMapOperator.prototype.call = function (observer, source) {
+            return source.subscribe(new MergeMapSubscriber(observer, this.project, this.concurrent));
+        };
+        return MergeMapOperator;
+    }());
+    var MergeMapSubscriber = /*@__PURE__*/ (function (_super) {
+        __extends(MergeMapSubscriber, _super);
+        function MergeMapSubscriber(destination, project, concurrent) {
+            if (concurrent === void 0) {
+                concurrent = Number.POSITIVE_INFINITY;
+            }
+            var _this = _super.call(this, destination) || this;
+            _this.project = project;
+            _this.concurrent = concurrent;
+            _this.hasCompleted = false;
+            _this.buffer = [];
+            _this.active = 0;
+            _this.index = 0;
+            return _this;
+        }
+        MergeMapSubscriber.prototype._next = function (value) {
+            if (this.active < this.concurrent) {
+                this._tryNext(value);
+            }
+            else {
+                this.buffer.push(value);
+            }
+        };
+        MergeMapSubscriber.prototype._tryNext = function (value) {
+            var result;
+            var index = this.index++;
+            try {
+                result = this.project(value, index);
+            }
+            catch (err) {
+                this.destination.error(err);
+                return;
+            }
+            this.active++;
+            this._innerSub(result, value, index);
+        };
+        MergeMapSubscriber.prototype._innerSub = function (ish, value, index) {
+            var innerSubscriber = new InnerSubscriber(this, undefined, undefined);
+            var destination = this.destination;
+            destination.add(innerSubscriber);
+            subscribeToResult(this, ish, value, index, innerSubscriber);
+        };
+        MergeMapSubscriber.prototype._complete = function () {
+            this.hasCompleted = true;
+            if (this.active === 0 && this.buffer.length === 0) {
+                this.destination.complete();
+            }
+            this.unsubscribe();
+        };
+        MergeMapSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+            this.destination.next(innerValue);
+        };
+        MergeMapSubscriber.prototype.notifyComplete = function (innerSub) {
+            var buffer = this.buffer;
+            this.remove(innerSub);
+            this.active--;
+            if (buffer.length > 0) {
+                this._next(buffer.shift());
+            }
+            else if (this.active === 0 && this.hasCompleted) {
+                this.destination.complete();
+            }
+        };
+        return MergeMapSubscriber;
+    }(OuterSubscriber));
+
+    /** PURE_IMPORTS_START _mergeMap,_util_identity PURE_IMPORTS_END */
+    function mergeAll(concurrent) {
+        if (concurrent === void 0) {
+            concurrent = Number.POSITIVE_INFINITY;
+        }
+        return mergeMap(identity, concurrent);
+    }
+
+    /** PURE_IMPORTS_START _mergeAll PURE_IMPORTS_END */
+    function concatAll() {
+        return mergeAll(1);
+    }
+
+    /** PURE_IMPORTS_START _of,_operators_concatAll PURE_IMPORTS_END */
+    function concat() {
+        var observables = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            observables[_i] = arguments[_i];
+        }
+        return concatAll()(of.apply(void 0, observables));
+    }
+
+    /** PURE_IMPORTS_START _Observable,_util_isArray,_util_isFunction,_operators_map PURE_IMPORTS_END */
+    function fromEvent(target, eventName, options, resultSelector) {
+        if (isFunction(options)) {
+            resultSelector = options;
+            options = undefined;
+        }
+        if (resultSelector) {
+            return fromEvent(target, eventName, options).pipe(map(function (args) { return isArray(args) ? resultSelector.apply(void 0, args) : resultSelector(args); }));
+        }
+        return new Observable(function (subscriber) {
+            function handler(e) {
+                if (arguments.length > 1) {
+                    subscriber.next(Array.prototype.slice.call(arguments));
+                }
+                else {
+                    subscriber.next(e);
+                }
+            }
+            setupSubscription(target, eventName, handler, subscriber, options);
+        });
+    }
+    function setupSubscription(sourceObj, eventName, handler, subscriber, options) {
+        var unsubscribe;
+        if (isEventTarget(sourceObj)) {
+            var source_1 = sourceObj;
+            sourceObj.addEventListener(eventName, handler, options);
+            unsubscribe = function () { return source_1.removeEventListener(eventName, handler, options); };
+        }
+        else if (isJQueryStyleEventEmitter(sourceObj)) {
+            var source_2 = sourceObj;
+            sourceObj.on(eventName, handler);
+            unsubscribe = function () { return source_2.off(eventName, handler); };
+        }
+        else if (isNodeStyleEventEmitter(sourceObj)) {
+            var source_3 = sourceObj;
+            sourceObj.addListener(eventName, handler);
+            unsubscribe = function () { return source_3.removeListener(eventName, handler); };
+        }
+        else if (sourceObj && sourceObj.length) {
+            for (var i = 0, len = sourceObj.length; i < len; i++) {
+                setupSubscription(sourceObj[i], eventName, handler, subscriber, options);
+            }
+        }
+        else {
+            throw new TypeError('Invalid event target');
+        }
+        subscriber.add(unsubscribe);
+    }
+    function isNodeStyleEventEmitter(sourceObj) {
+        return sourceObj && typeof sourceObj.addListener === 'function' && typeof sourceObj.removeListener === 'function';
+    }
+    function isJQueryStyleEventEmitter(sourceObj) {
+        return sourceObj && typeof sourceObj.on === 'function' && typeof sourceObj.off === 'function';
+    }
+    function isEventTarget(sourceObj) {
+        return sourceObj && typeof sourceObj.addEventListener === 'function' && typeof sourceObj.removeEventListener === 'function';
+    }
+
     /** PURE_IMPORTS_START _isArray PURE_IMPORTS_END */
     function isNumeric(val) {
         return !isArray(val) && (val - parseFloat(val) + 1) >= 0;
@@ -1490,6 +1808,33 @@ var mainBundle = (function (exports) {
         return ScanSubscriber;
     }(Subscriber));
 
+    /** PURE_IMPORTS_START _observable_fromArray,_observable_scalar,_observable_empty,_observable_concat,_util_isScheduler PURE_IMPORTS_END */
+    function startWith() {
+        var array = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            array[_i] = arguments[_i];
+        }
+        return function (source) {
+            var scheduler = array[array.length - 1];
+            if (isScheduler(scheduler)) {
+                array.pop();
+            }
+            else {
+                scheduler = null;
+            }
+            var len = array.length;
+            if (len === 1 && !scheduler) {
+                return concat(scalar(array[0]), source);
+            }
+            else if (len > 0) {
+                return concat(fromArray(array, scheduler), source);
+            }
+            else {
+                return concat(empty$1(scheduler), source);
+            }
+        };
+    }
+
     /** PURE_IMPORTS_START tslib,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult,_map,_observable_from PURE_IMPORTS_END */
     function switchMap(project, resultSelector) {
         if (typeof resultSelector === 'function') {
@@ -1560,12 +1905,83 @@ var mainBundle = (function (exports) {
         return SwitchMapSubscriber;
     }(OuterSubscriber));
 
+    /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
+    function takeWhile(predicate, inclusive) {
+        if (inclusive === void 0) {
+            inclusive = false;
+        }
+        return function (source) {
+            return source.lift(new TakeWhileOperator(predicate, inclusive));
+        };
+    }
+    var TakeWhileOperator = /*@__PURE__*/ (function () {
+        function TakeWhileOperator(predicate, inclusive) {
+            this.predicate = predicate;
+            this.inclusive = inclusive;
+        }
+        TakeWhileOperator.prototype.call = function (subscriber, source) {
+            return source.subscribe(new TakeWhileSubscriber(subscriber, this.predicate, this.inclusive));
+        };
+        return TakeWhileOperator;
+    }());
+    var TakeWhileSubscriber = /*@__PURE__*/ (function (_super) {
+        __extends(TakeWhileSubscriber, _super);
+        function TakeWhileSubscriber(destination, predicate, inclusive) {
+            var _this = _super.call(this, destination) || this;
+            _this.predicate = predicate;
+            _this.inclusive = inclusive;
+            _this.index = 0;
+            return _this;
+        }
+        TakeWhileSubscriber.prototype._next = function (value) {
+            var destination = this.destination;
+            var result;
+            try {
+                result = this.predicate(value, this.index++);
+            }
+            catch (err) {
+                destination.error(err);
+                return;
+            }
+            this.nextOrComplete(value, result);
+        };
+        TakeWhileSubscriber.prototype.nextOrComplete = function (value, predicateResult) {
+            var destination = this.destination;
+            if (Boolean(predicateResult)) {
+                destination.next(value);
+            }
+            else {
+                if (this.inclusive) {
+                    destination.next(value);
+                }
+                destination.complete();
+            }
+        };
+        return TakeWhileSubscriber;
+    }(Subscriber));
+
     var ALPHABET_LENGTH = 26;
+    var LEVEL_CHANGE_THRESHOLD = 20;
+    var speedAdjust = 50;
+    var endThreshold = 15;
     var charCellWidth = 30;
     var Game = /** @class */ (function () {
         function Game() {
+            this.subs = new Subscription();
             this.intervalSubject = new BehaviorSubject(600);
+            this.keys$ = fromEvent(document, 'keydown')
+                .pipe(startWith({ key: '' }), map(function (e) { return e.key; }));
         }
+        Game.prototype.killGame = function () {
+            this.subs.unsubscribe();
+        };
+        Game.prototype.startGame = function () {
+            var gameState$ = this.getGameState();
+            this.subs.add(gameState$.subscribe());
+        };
+        Game.prototype.getInitialGameState = function () {
+            return { score: 0, letters: [], level: 1 };
+        };
         Game.prototype.getLetters = function () {
             var _this = this;
             return this.intervalSubject.pipe(switchMap(function (i) { return interval(i)
@@ -1580,6 +1996,10 @@ var mainBundle = (function (exports) {
                 };
             }, { ltrs: [], intrvl: 0 })); }));
         };
+        Game.prototype.getRender = function (state) {
+            var render = "Score: " + state.score + ", Level: " + state.level + " <br>";
+            return render;
+        };
         Game.prototype.getRandom = function () {
             var ran = Math.random();
             return ran < 1 ? ran : 0.99;
@@ -1589,13 +2009,41 @@ var mainBundle = (function (exports) {
             var aCode = 'a'.charCodeAt(0);
             return String.fromCharCode(aCode + randomLetterCode);
         };
+        Game.prototype.getGameState = function () {
+            var _this = this;
+            var letters$ = this.getLetters();
+            var seed = this.getInitialGameState();
+            return combineLatest(this.keys$, letters$)
+                .pipe(
+            // tap<[string, Letters]>(([keys, letters]) => console.log('--', keys, letters)),
+            scan(function (accState, _a) {
+                var key = _a[0], letters = _a[1];
+                var lastLetter = letters.ltrs[letters.ltrs.length - 1];
+                if (lastLetter && lastLetter.letter === key) {
+                    _this.onScoreSuccess(accState, letters.ltrs);
+                }
+                var isLevelUp = accState.score > 0 && accState.score % LEVEL_CHANGE_THRESHOLD === 0;
+                if (isLevelUp) {
+                    _this.onLevelUp(letters, accState);
+                }
+                return { score: accState.score, letters: letters.ltrs, level: accState.level };
+            }, seed), 
+            // tap((state) => console.log(state)),
+            takeWhile(function (state) { return state.letters.length < endThreshold; }));
+        };
+        Game.prototype.onScoreSuccess = function (state, letters) {
+            state.score += 1;
+            letters.pop();
+        };
+        Game.prototype.onLevelUp = function (letters, state) {
+            letters.ltrs = [];
+            state.level += 1;
+            this.intervalSubject.next(letters.intrvl - speedAdjust);
+        };
         return Game;
     }());
+
     var game = new Game();
+    game.startGame();
 
-    exports.ALPHABET_LENGTH = ALPHABET_LENGTH;
-    exports.Game = Game;
-
-    return exports;
-
-}({}));
+}());

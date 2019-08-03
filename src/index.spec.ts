@@ -1,6 +1,6 @@
-import { Game, ALPHABET_LENGTH } from './index';
-import { Letters } from './interfaces';
-import { Subscription } from 'rxjs';
+import { Game, ALPHABET_LENGTH, LEVEL_CHANGE_THRESHOLD } from './Game';
+import { Letters, State, Letter } from './interfaces';
+import { Subscription, of } from 'rxjs';
 
 describe('randomLetter', () => {
   let game: Game;
@@ -64,5 +64,120 @@ describe('getLetters', () => {
           done();
         }
       });
+  });
+});
+
+describe('getGameState', () => {
+  let game: Game;
+  let subs: Subscription = new Subscription();
+
+  const getLetters = (): Letter[] => ([
+    { letter: 'a', yPos: 0 },
+    { letter: 'b', yPos: 0 },
+    { letter: 'c', yPos: 0 }
+  ]);
+
+  beforeEach(() => {
+    game = new Game();
+  });
+
+  afterEach(() => {
+    subs.unsubscribe();
+  })
+
+  it(`score and level should stay same as seed when no keys passed, but letters accumulate`, () => {
+
+    game['keys$'] = of('z');
+    
+    spyOn(game, 'getLetters').and.returnValue(of({
+      ltrs: getLetters(),
+      intrvl: 600
+    }));
+
+    let curState: State;
+    subs.add(
+      game.getGameState()
+        .subscribe(state => {
+          curState = state;
+        })
+    );
+
+    expect(curState).toEqual({ score: 0, letters: getLetters(), level: 1 });
+  });
+
+  it(`score should increment when key is passed that matches last letter`, () => {
+    game['keys$'] = of('c');
+
+    spyOn(game, 'getLetters').and.returnValue(of({
+      ltrs: getLetters(),
+      intrvl: 600
+    }));
+
+    let curState: State;
+    subs.add(
+      game.getGameState()
+        .subscribe(state => {
+          curState = state;
+        })
+    );
+
+    const letters = getLetters();
+    letters.pop();
+    expect(curState).toEqual({ score: 1, letters, level: 1 });
+  });
+
+  it(`level and speed ('intervalSubject') should increment when scrore reaches 'LEVEL_CHANGE_THRESHOLD'`, () => {
+    spyOn(game, 'getInitialGameState').and.returnValue(
+      { score: LEVEL_CHANGE_THRESHOLD-1, letters: [], level: 1 }
+    );
+
+    game['keys$'] = of('c');
+
+    spyOn(game, 'getLetters').and.returnValue(of({
+      ltrs: getLetters(),
+      intrvl: 600
+    }));
+
+    let score: number;
+    let level: number;
+    subs.add(
+      game.getGameState()
+        .subscribe(state => {
+          score = state.score;
+          level = state.level;
+        })
+    );
+
+    expect(score).toBe(LEVEL_CHANGE_THRESHOLD);
+    expect(level).toBe(2);
+  });
+
+  it(`level and speed ('intervalSubject') should increment when scrore reaches 'LEVEL_CHANGE_THRESHOLD' * 2`, () => {
+
+    const multiplier = 3;
+    
+    spyOn(game, 'getInitialGameState').and.returnValue(
+      { score: (LEVEL_CHANGE_THRESHOLD * multiplier)-1, letters: [], level: multiplier-1 }
+    );
+
+    game['keys$'] = of('c');
+
+    spyOn(game, 'getLetters').and.returnValue(of({
+      ltrs: getLetters(),
+      intrvl: 600
+    }));
+
+    let score: number;
+    let level: number;
+    subs.add(
+      game.getGameState()
+        .subscribe(state => {
+          score = state.score;
+          level = state.level;
+        })
+    );
+
+    expect(score).toBe(LEVEL_CHANGE_THRESHOLD * multiplier);
+    expect(level).toBe(multiplier);
   });
 });
