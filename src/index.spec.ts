@@ -149,6 +149,7 @@ describe('getGameState', () => {
     );
 
     expect(score).toBe(LEVEL_CHANGE_THRESHOLD);
+    expect(game['levelBumped']).toBe(true);
     expect(level).toBe(2);
   });
 
@@ -178,6 +179,7 @@ describe('getGameState', () => {
     );
 
     expect(score).toBe(LEVEL_CHANGE_THRESHOLD * multiplier);
+    expect(game['scoreBumped']).toBe(true);
     expect(level).toBe(multiplier);
   });
 });

@@ -1967,6 +1967,7 @@
     var charCellWidth = 30;
     var Game = /** @class */ (function () {
         function Game() {
+            this.levelBumped = false;
             this.subs = new Subscription();
             this.intervalSubject = new BehaviorSubject(600);
             this.keys$ = fromEvent(document, 'keydown')
@@ -1976,8 +1977,19 @@
             this.subs.unsubscribe();
         };
         Game.prototype.startGame = function () {
-            var gameState$ = this.getGameState();
-            this.subs.add(gameState$.subscribe());
+            var _this = this;
+            this.intervalSubject = new BehaviorSubject(600);
+            this.subs.add(this.getGameState()
+                .subscribe(function (state) {
+                document.body.innerHTML = _this.getRender(state);
+            }, function () { }, function () {
+                document.body.innerHTML += '<br>Game Over! <br> <button type="button">Play again?</button>';
+                fromEvent(document.querySelector('button'), 'click')
+                    .subscribe(function () {
+                    document.body.innerHTML = '';
+                    _this.startGame();
+                });
+            }));
         };
         Game.prototype.getInitialGameState = function () {
             return { score: 0, letters: [], level: 1 };
@@ -1995,10 +2007,6 @@
                     intrvl: i
                 };
             }, { ltrs: [], intrvl: 0 })); }));
-        };
-        Game.prototype.getRender = function (state) {
-            var render = "Score: " + state.score + ", Level: " + state.level + " <br>";
-            return render;
         };
         Game.prototype.getRandom = function () {
             var ran = Math.random();
@@ -2021,8 +2029,9 @@
                 var lastLetter = letters.ltrs[letters.ltrs.length - 1];
                 if (lastLetter && lastLetter.letter === key) {
                     _this.onScoreSuccess(accState, letters.ltrs);
+                    _this.levelBumped = false;
                 }
-                var isLevelUp = accState.score > 0 && accState.score % LEVEL_CHANGE_THRESHOLD === 0;
+                var isLevelUp = !_this.levelBumped && accState.score > 0 && accState.score % LEVEL_CHANGE_THRESHOLD === 0;
                 if (isLevelUp) {
                     _this.onLevelUp(letters, accState);
                 }
@@ -2031,6 +2040,15 @@
             // tap((state) => console.log(state)),
             takeWhile(function (state) { return state.letters.length < endThreshold; }));
         };
+        Game.prototype.getRender = function (state) {
+            return "Score: " + state.score + ", Level: " + state.level + " <br>\n      " + this.getLettersRender(state) + "\n      " + this.getBaseline(state);
+        };
+        Game.prototype.getBaseline = function (state) {
+            return '<br>'.repeat(endThreshold - state.letters.length - 1) + '-'.repeat(charCellWidth);
+        };
+        Game.prototype.getLettersRender = function (state) {
+            return state.letters.map(function (l) { return '&nbsp;'.repeat(l.yPos) + l.letter + '<br>'; }).join('');
+        };
         Game.prototype.onScoreSuccess = function (state, letters) {
             state.score += 1;
             letters.pop();
@@ -2038,6 +2056,7 @@
         Game.prototype.onLevelUp = function (letters, state) {
             letters.ltrs = [];
             state.level += 1;
+            this.levelBumped = true;
             this.intervalSubject.next(letters.intrvl - speedAdjust);
         };
         return Game;

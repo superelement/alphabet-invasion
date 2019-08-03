@@ -10,9 +10,11 @@ const charCellWidth = 30;
 
 export class Game {
 
+  private levelBumped = false;
+  
   private subs = new Subscription();
   
-  private intervalSubject = new BehaviorSubject(600);
+  private intervalSubject: BehaviorSubject<number> = new BehaviorSubject(600);
 
   private keys$: Observable<string> = fromEvent(document, 'keydown')
     .pipe(
@@ -25,10 +27,25 @@ export class Game {
   }
 
   startGame(): void {
-    const gameState$ = this.getGameState();
+
+    this.intervalSubject = new BehaviorSubject(600);
     
     this.subs.add(
-      gameState$.subscribe()
+      this.getGameState()
+        .subscribe(
+          (state: State) => {
+            document.body.innerHTML = this.getRender(state);
+          },
+          () => {},
+          () => {
+            document.body.innerHTML += '<br>Game Over! <br> <button type="button">Play again?</button>';
+            fromEvent(document.querySelector('button'), 'click')
+              .subscribe(() => {
+                document.body.innerHTML = '';
+                this.startGame();
+              });
+          }
+        )
     );
   }
 
@@ -57,12 +74,6 @@ export class Game {
     );
   }
 
-  getRender(state: State): string {
-    let render = `Score: ${state.score}, Level: ${state.level} <br>`;
-
-    return render;
-  }
-
   getRandom(): number {
     const ran = Math.random();
     return ran < 1 ? ran : 0.99;
@@ -88,9 +99,11 @@ export class Game {
           
           if (lastLetter && lastLetter.letter === key) {
             this.onScoreSuccess(accState, letters.ltrs);
+            this.levelBumped = false;
           }
           
-          const isLevelUp: boolean = accState.score > 0 && accState.score % LEVEL_CHANGE_THRESHOLD === 0;
+          const isLevelUp: boolean = !this.levelBumped && accState.score > 0 && accState.score % LEVEL_CHANGE_THRESHOLD === 0;
+
           if (isLevelUp) {
             this.onLevelUp(letters, accState);
           }
@@ -102,6 +115,20 @@ export class Game {
       );
   }
 
+  private getRender(state: State): string {
+    return `Score: ${state.score}, Level: ${state.level} <br>
+      ${this.getLettersRender(state)}
+      ${this.getBaseline(state)}`;
+  }
+
+  private getBaseline(state: State): string {
+    return '<br>'.repeat(endThreshold - state.letters.length - 1) + '-'.repeat(charCellWidth);
+  }
+
+  private getLettersRender(state: State): string {
+    return state.letters.map(l => '&nbsp;'.repeat(l.yPos) + l.letter + '<br>').join('');
+  }
+
   private onScoreSuccess(state: State, letters: Letter[]): void {
     state.score += 1;
     letters.pop();
@@ -110,6 +137,8 @@ export class Game {
   private onLevelUp(letters: Letters, state: State): void {
     letters.ltrs = [];
     state.level += 1;
+    this.levelBumped = true;
     this.intervalSubject.next(letters.intrvl - speedAdjust);
   }
+
 }
