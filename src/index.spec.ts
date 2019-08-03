@@ -179,7 +179,7 @@ describe('getGameState', () => {
     );
 
     expect(score).toBe(LEVEL_CHANGE_THRESHOLD * multiplier);
-    expect(game['scoreBumped']).toBe(true);
+    expect(game['levelBumped']).toBe(true);
     expect(level).toBe(multiplier);
   });
 });
